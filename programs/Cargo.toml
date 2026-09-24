@@ -1,0 +1,7 @@
+[workspace]
+members = ["panenka-contest"]
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
