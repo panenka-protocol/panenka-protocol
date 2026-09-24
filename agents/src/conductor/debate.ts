@@ -11,6 +11,7 @@ import { differentialHunter } from "../agents/differentialHunter.js";
 import { captainSelector } from "../agents/captainSelector.js";
 import { chipStrategist } from "../agents/chipStrategist.js";
 import { transferTrader } from "../agents/transferTrader.js";
+import { xiBuilder } from "../agents/xiBuilder.js";
 
 export const SWARM: Specialist[] = [
   fixtureScout,
@@ -18,6 +19,7 @@ export const SWARM: Specialist[] = [
   captainSelector,
   chipStrategist,
   transferTrader,
+  xiBuilder,
 ];
 
 export interface Decision {
