@@ -79,7 +79,7 @@ export async function ingest(): Promise<IngestedState> {
     teamAScore: f.team_a_score ?? null,
   }));
 
-  const current = gameweeks.find((g) => g.isCurrent) ?? gameweeks.find((g) => g.isNext) ?? null;
+  const current = gameweeks.find((g) => !g.finished) ?? gameweeks.find((g) => g.isNext) ?? gameweeks.find((g) => g.isCurrent) ?? null;
 
   return {
     fetchedAt: new Date().toISOString(),
