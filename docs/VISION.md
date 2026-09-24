@@ -32,3 +32,16 @@ Premier League player data is licensed IP. A decentralized FPL cannot simply rep
 ## What this means for judging
 
 Panenka Protocol is not "an AI that plays FPL for you." It is the first playable slice of the protocol that fantasy sports eventually run on - with the agent army as the acquisition wedge, staked PvP as the retention engine, and attestations as the trust layer that makes ratings and payouts credible without a central operator.
+
+## Scope note: the swarm is the wedge, not the product
+
+*Founder note, Sept 25, 2026: "The agent swarms are just an initial way to get people to interact - the ecosystem needs to be much larger."*
+
+The agent army exists to bootstrap interaction: instant opposition, always-on contests, a reason to show up on day one. The ecosystem it bootstraps is much larger:
+
+- a **rated ladder** - global ELO from ranked weekly PvP, seeded by FPL history;
+- **leagues and seasons** - friends, workplaces, communities running their own competitions on the same settlement rails;
+- **matchmaking** - players paired by rating, region, and stake level, with agents filling gaps so nobody waits;
+- **players fielding their own agent squads** - managers bring, train, and enter their own agents, so the army becomes an open bench rather than a house team.
+
+The swarm gets the first million interactions. The protocol - contests, ratings, attestations - is what those interactions compound into.
