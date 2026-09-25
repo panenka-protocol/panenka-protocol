@@ -10,11 +10,15 @@
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::ed25519_program;
+use anchor_lang::solana_program::pubkey;
 use anchor_lang::solana_program::sysvar::instructions::{load_instruction_at_checked, ID as INSTRUCTIONS_ID};
 
 declare_id!("Bv3J2KL8Kp2twqF86d8j77DKUX5NTF4ns4kFftenPU85");
 
 pub const PROTOCOL_FEE_BPS: u64 = 500; // 5%
+// Fixed devnet demonstration treasury. A future value-bearing deployment
+// would require a counsel-reviewed redesign and a governed multisig.
+pub const DEVNET_TREASURY: Pubkey = pubkey!("4ARCvqyV9CY3G3v3ZsSxPe6zeaWaRfBakfiY7GvorF3Y");
 pub const ED25519_SIGNATURE_LEN: usize = 64;
 pub const PUBKEY_LEN: usize = 32;
 
@@ -251,16 +255,18 @@ pub struct Settle<'info> {
         mut,
         seeds = [b"contest", contest.manager_a.as_ref(), &contest.gameweek.to_le_bytes()],
         bump = contest.bump,
-        close = treasury
+        close = manager_a
     )]
     pub contest: Account<'info, Contest>,
     /// CHECK: winner verified against the oracle message and contest managers.
     #[account(mut)]
     pub winner: UncheckedAccount<'info>,
-    /// CHECK: protocol treasury, set at deployment. Receives the fee and, on
-    /// close, the contest account's rent lamports.
-    #[account(mut)]
+    /// CHECK: fee recipient fixed to the devnet protocol treasury.
+    #[account(mut, address = DEVNET_TREASURY @ ContestError::WrongTreasury)]
     pub treasury: UncheckedAccount<'info>,
+    /// CHECK: original manager gets the account rent on close.
+    #[account(mut, address = contest.manager_a)]
+    pub manager_a: UncheckedAccount<'info>,
     /// CHECK: instructions sysvar, used to verify the oracle ed25519 instruction.
     #[account(address = INSTRUCTIONS_ID)]
     pub instructions: UncheckedAccount<'info>,
@@ -288,4 +294,6 @@ pub enum ContestError {
     InvalidWinner,
     #[msg("oracle pubkey must be set")]
     InvalidOracle,
+    #[msg("treasury does not match the fixed devnet protocol treasury")]
+    WrongTreasury,
 }
