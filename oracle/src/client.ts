@@ -11,6 +11,7 @@ import {
 } from "@solana/web3.js";
 
 export const PROGRAM_ID = new PublicKey("Bv3J2KL8Kp2twqF86d8j77DKUX5NTF4ns4kFftenPU85");
+export const DEVNET_TREASURY = new PublicKey("4ARCvqyV9CY3G3v3ZsSxPe6zeaWaRfBakfiY7GvorF3Y");
 
 function discriminator(name: string): Buffer {
   return createHash("sha256").update(`global:${name}`).digest().subarray(0, 8);
@@ -86,6 +87,7 @@ export function settleIx(
       { pubkey: contest, isSigner: false, isWritable: true },
       { pubkey: winner, isSigner: false, isWritable: true },
       { pubkey: treasury, isSigner: false, isWritable: true },
+      { pubkey: managerA, isSigner: false, isWritable: true },
       { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
     ],
     data: discriminator("settle"),
