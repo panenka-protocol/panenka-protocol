@@ -10,7 +10,7 @@ import nacl from "tweetnacl";
 import { Keypair } from "@solana/web3.js";
 import { entryGameweekPoints, gameweekFinished } from "./scoring.js";
 import type { ContestResult } from "./result.js";
-import { canonicalMessage } from "./result.js";
+import { canonicalMessageDisplay } from "./result.js";
 
 const POLL_MS = 15 * 60 * 1000; // gameweeks close slowly; no hot polling
 
@@ -58,12 +58,12 @@ export async function watchAndSign(
   // for the watcher CLI the winner wallet pubkey is passed by the caller env.
   const winnerPubkey = process.env.WINNER_PUBKEY ?? "<winner-wallet-pubkey>";
   const oracle = await loadOracleKeypair(keypairPath);
-  const msg = canonicalMessage(result, winnerPubkey);
+  const msg = canonicalMessageDisplay(result, winnerPubkey);
   const sig = nacl.sign.detached(Buffer.from(msg, "utf8"), oracle.secretKey);
   console.log("signed message:", msg);
   console.log("oracle pubkey:", oracle.publicKey.toBase58());
   console.log("signature (base64):", Buffer.from(sig).toString("base64"));
-  console.log("submit via settle instruction with an ed25519 verify ix at index 0");
+  console.log("submit via settle.ts (ed25519 verify ix at index 0, settle ix at index 1)");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

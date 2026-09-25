@@ -79,7 +79,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const { runDebate } = await import("./debate.js");
   const debate = runDebate(await ingest());
   const rec = await attest(debate, {
-    rpc: "https://api.devnet.solana.com",
+    rpc: process.env.PANENKA_RPC ?? "https://devnet.helius-rpc.com/?api-key=" + (process.env.HELIUS_API_KEY ?? "0f4ca49b-0b8b-4841-a274-b49fbab1f847"),
     keypairPath: new URL("../../.keys/attestor-devnet.json", import.meta.url).pathname,
     cluster: "devnet",
   });

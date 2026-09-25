@@ -3,7 +3,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-panenka_contest = "PANaGTE11111111111111111111111111111111111"
+panenka_contest = "Bv3J2KL8Kp2twqF86d8j77DKUX5NTF4ns4kFftenPU85"
 
 [registry]
 url = "https://api.apr.dev"
