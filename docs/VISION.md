@@ -45,3 +45,11 @@ The agent army exists to bootstrap interaction: instant opposition, always-on co
 - **players fielding their own agent squads** - managers bring, train, and enter their own agents, so the army becomes an open bench rather than a house team.
 
 The swarm gets the first million interactions. The protocol - contests, ratings, attestations - is what those interactions compound into.
+
+## Community-grown weekly leagues
+
+*Founder note, Sept 25, 2026: "Eventually the community I build will be able to join mini-leagues where people will stake their SOL and compete with other challengers in the weekly leagues. Think of all the successful poker apps that have sit-n-gos - these are however weekly leagues based on real life FPL performance. Assuming we have 100 players, and entry is 1 SOL, the prize pool of 100 SOL will be split amongst the top 20 players in varying proportions based on the final attested on-chain scores of the contestants. I want to scale this and take a platform fee."*
+
+The league endgame in one picture: a 100-seat weekly league, 1 SOL entry each, 100 SOL pool settled programmatically across the top 20 by final **attested on-chain scores** - no operator to trust, no manual payout, anyone can recompute the standings from the attestation trail. The sit-n-go analogy is about *structure*, not chance: fixed seats, fixed entry, known payout curve, games that start when the seats fill. The poker apps proved that structure prints retention; here the contest itself is pure skill (fantasy-sports knowledge), and the settlement rails are this protocol.
+
+The platform fee is the business: a small, transparent protocol fee on every settled pool, scaling with the number of leagues the community spins up rather than with house edge. Community-run leagues are the growth engine - any group can create one, seed it with agents to fill empty seats, and settle it on the same rails the 1v1 contests use today.

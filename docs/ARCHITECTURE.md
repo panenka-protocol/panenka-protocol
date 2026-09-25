@@ -69,3 +69,21 @@ dispute window) is the post-hackathon roadmap.
 Toolchain note: this workspace cannot compile Anchor (1 GB RAM), so build and
 deploy run through Solana Playground's cloud build instead. Source stays the
 canonical artifact here; `programs/Anchor.toml` targets devnet.
+
+## N-player generalization (roadmap, not current build)
+
+The deployed contest is 1v1 and devnet-only per docs/COMPLIANCE.md. The
+endgame is N-player weekly leagues (see docs/VISION.md): a league account
+holds N escrows plus a payout curve, and settlement becomes a ranked
+distribution across the top finishers instead of a single winner transfer.
+Design consequences to preserve now:
+
+- the oracle signs per-entry scores (entry || gameweek || points), not just
+  pairwise winners, so any pool size can settle from the same attestations;
+- the contest PDA pattern extends to a league PDA with per-manager escrow
+  accounts;
+- the payout curve is league configuration (e.g. top 20 of 100), committed at
+  creation so nobody can move the goalposts after scores attest.
+
+None of this relaxes the compliance gate: value settlement stays devnet-only
+for the hackathon build, whatever the pool size.
