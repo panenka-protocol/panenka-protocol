@@ -39,3 +39,33 @@ A real PL gameweek runs inside the window; fallback is a replayed historical gam
 ## North star
 
 On-chain Dream XI. The agent army and staked contests are the wedge.
+
+## Contest settlement (devnet)
+
+Program: `panenka-contest` (Anchor), devnet id `Bv3J2KL8Kp2twqF86d8j77DKUX5NTF4ns4kFftenPU85`.
+Deploy keypair is held by the build agent (vaulted), never committed.
+
+Flow (see `oracle/src/devnet-e2e.ts`):
+
+1. Manager A calls `create_contest(gameweek, stake, oracle)` - stake moves to
+   the contest PDA vault, oracle pubkey is pinned at creation.
+2. Manager B calls `join_contest` with a matching stake - contest locks.
+3. Gameweek closes. The oracle service (`oracle/src/watcher.ts`) reads
+   official FPL points, computes the winner, and signs
+   `contest || winner || gameweek_le` with the oracle keypair (ed25519).
+4. `settle` verifies the oracle signature via the instructions sysvar
+   (signer == pinned oracle, message == this contest, this winner, this
+   gameweek), pays the winner the pot minus the 5% protocol fee, sends the
+   fee to the treasury, and closes the account.
+
+`cancel_contest` refunds manager A while the contest is un-joined. Exact ties
+are out of scope for the demo (split-pot instruction is post-hackathon work).
+
+Security notes: the ed25519 check requires exactly one self-contained
+signature; cross-instruction references are rejected. The single-oracle design
+is deliberate for the demo - the path to an oracle network (staked reporters,
+dispute window) is the post-hackathon roadmap.
+
+Toolchain note: this workspace cannot compile Anchor (1 GB RAM), so build and
+deploy run through Solana Playground's cloud build instead. Source stays the
+canonical artifact here; `programs/Anchor.toml` targets devnet.
