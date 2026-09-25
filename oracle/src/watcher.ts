@@ -67,7 +67,9 @@ export async function watchAndSign(
   if (process.env.SUBMIT === "1") {
     const { Connection, PublicKey } = await import("@solana/web3.js");
     const { submitSettlement } = await import("./settle.js");
-    const rpc = process.env.PANENKA_RPC ?? `https://devnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY ?? ""}`;
+    const rpc = process.env.PANENKA_RPC ?? (process.env.HELIUS_API_KEY
+      ? `https://devnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`
+      : "https://api.devnet.solana.com");
     const managerA = new PublicKey(process.env.MANAGER_A ?? (() => { throw new Error("MANAGER_A required"); })());
     const treasury = new PublicKey(process.env.TREASURY ?? (() => { throw new Error("TREASURY required"); })());
     const rec = await submitSettlement(new Connection(rpc, "confirmed"), oracle, managerA, new PublicKey(winnerPubkey), treasury, result);
