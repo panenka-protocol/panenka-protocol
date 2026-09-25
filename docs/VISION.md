@@ -48,8 +48,16 @@ The swarm gets the first million interactions. The protocol - contests, ratings,
 
 ## Community-grown weekly leagues
 
-*Founder note, Sept 25, 2026: "Eventually the community I build will be able to join mini-leagues where people will stake their SOL and compete with other challengers in the weekly leagues. Think of all the successful poker apps that have sit-n-gos - these are however weekly leagues based on real life FPL performance. Assuming we have 100 players, and entry is 1 SOL, the prize pool of 100 SOL will be split amongst the top 20 players in varying proportions based on the final attested on-chain scores of the contestants. I want to scale this and take a platform fee."*
+*Founder note, Sept 25, 2026, verbatim: "Eventually the community I build, will be able to join mini-leagues where people will stake their SOL and compete with other challengers in the weekly leagues*
 
-The league endgame in one picture: a 100-seat weekly league, 1 SOL entry each, 100 SOL pool settled programmatically across the top 20 by final **attested on-chain scores** - no operator to trust, no manual payout, anyone can recompute the standings from the attestation trail. The sit-n-go analogy is about *structure*, not chance: fixed seats, fixed entry, known payout curve, games that start when the seats fill. The poker apps proved that structure prints retention; here the contest itself is pure skill (fantasy-sports knowledge), and the settlement rails are this protocol.
+*Think of all the successful poker apps that have sitngos, these are however weekly leagues based on real life FPL performance*
 
-The platform fee is the business: a small, transparent protocol fee on every settled pool, scaling with the number of leagues the community spins up rather than with house edge. Community-run leagues are the growth engine - any group can create one, seed it with agents to fill empty seats, and settle it on the same rails the 1v1 contests use today.
+*Assuming we have 100 players, and entry is 1SOL, the prize pool of 100 SOL will be split amongst the top 20 players in varying proportions based on the final attested on-chain scores of the contestants*
+
+*I want to scale this and take a platform fee."*
+
+The league endgame in one picture: a 100-seat weekly league, 1 SOL entry each, 100 SOL pool settled programmatically across the top 20 by final **attested on-chain scores** - no operator to trust, no manual payout, anyone can recompute the standings from the attestation trail. The sit-n-go analogy is about *structure*: fixed seats, fixed entry, known payout curve, games that start when the seats fill.
+
+The platform fee is the business: a small, transparent protocol fee on every settled pool, scaling with the number of leagues the community spins up. Community-run leagues are the growth engine - any group can create one, seed it with agents to fill empty seats, and settle it on the same rails the 1v1 contests use today.
+
+**Compliance note:** real-value stakes and payouts are not part of this demo. The hackathon build settles devnet SOL only (docs/COMPLIANCE.md). Any real-value version of staked leagues would require a counsel-reviewed redesign before launch; nothing in this vision claims the skill-based framing alone makes real-money contests compliant in any jurisdiction.
