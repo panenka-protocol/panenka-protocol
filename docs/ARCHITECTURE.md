@@ -48,7 +48,9 @@ Deploy keypair is held by the build agent (vaulted), never committed.
 Flow (see `oracle/src/devnet-e2e.ts`):
 
 1. Manager A calls `create_contest(gameweek, stake, oracle)` - stake moves to
-   the contest PDA vault, oracle pubkey is pinned at creation.
+   the contest PDA vault, oracle pubkey is pinned at creation. The demo program
+   fixes the protocol fee destination to devnet treasury
+   `4ARCvqyV9CY3G3v3ZsSxPe6zeaWaRfBakfiY7GvorF3Y`.
 2. Manager B calls `join_contest` with a matching stake - contest locks.
 3. Gameweek closes. The oracle service (`oracle/src/watcher.ts`) reads
    official FPL points, computes the winner, and signs
@@ -56,12 +58,16 @@ Flow (see `oracle/src/devnet-e2e.ts`):
 4. `settle` verifies the oracle signature via the instructions sysvar
    (signer == pinned oracle, message == this contest, this winner, this
    gameweek), pays the winner the pot minus the 5% protocol fee, sends the
-   fee to the treasury, and closes the account.
+   fee to that fixed treasury, and closes the account. Rent returns to manager A.
 
 `cancel_contest` refunds manager A while the contest is un-joined. Exact ties
 are out of scope for the demo (split-pot instruction is post-hackathon work).
 
-Security notes: the ed25519 check requires exactly one self-contained
+Security notes: a caller-substituted treasury is rejected by an Anchor account
+constraint; `oracle/src/devnet-e2e.ts` simulates that rejection before the
+valid settlement. The treasury keypair is kept out of Git. A future
+value-bearing design needs counsel review and a governed multisig rather than
+this fixed demo key. The ed25519 check requires exactly one self-contained
 signature; cross-instruction references are rejected. The single-oracle design
 is deliberate for the demo - the path to an oracle network (staked reporters,
 dispute window) is the post-hackathon roadmap.
