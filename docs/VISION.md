@@ -11,6 +11,17 @@ A decentralized version of Fantasy Premier League: the fantasy game itself, rebu
 - **Chess.com-grade UX.** Extremely seamless. No wallet jargon, no crypto friction in the loop. The protocol is plumbing; the user sees a game.
 - **Chess.com-grade stickiness.** The reason people come back weekly is the same reason chess players come back: competition against real people, a rating that means something, and a history that is yours.
 
+## Website direction (Sept 25 design steer)
+
+The founder wants the website inspired by Apple's first principles: effortless
+onboarding and a reason to return. For the hackathon demo, test this as a
+single clear job per screen: start a game without wallet jargon, explain the
+wallet only when the devnet contest needs it, and reveal detail as the player
+asks for it. Aim for a first playable action in under a minute. The repeat loop
+is play, rank, rematch. These are design targets, not measured results; test
+with actual users before claiming conversion or retention. Show devnet-only
+value plainly before any escrow action, without making a real-money offer.
+
 ## The loop
 
 - **Weekly PvP contests** - against your friends, or global matchmade players at your level.
