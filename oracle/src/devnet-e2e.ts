@@ -15,12 +15,15 @@ import {
   Transaction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import { createContestIx, joinContestIx, contestPda } from "./client.js";
+import { createContestIx, joinContestIx, contestPda, settleIx, oracleMessage, DEVNET_TREASURY } from "./client.js";
+import nacl from "tweetnacl";
+import { Ed25519Program } from "@solana/web3.js";
 import { submitSettlement } from "./settle.js";
 import type { ContestResult } from "./result.js";
 
-const RPC = process.env.PANENKA_RPC ??
-  `https://devnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY ?? ""}`;
+const RPC = process.env.PANENKA_RPC ?? (process.env.HELIUS_API_KEY
+  ? `https://devnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`
+  : "https://api.devnet.solana.com");
 const KEYS = new URL("../.keys/", import.meta.url).pathname;
 
 async function loadOrCreate(name: string): Promise<Keypair> {
@@ -49,17 +52,16 @@ const stakeSol = Number(args[args.indexOf("--stake") + 1] ?? 0.05);
 const gameweek = Number(args[args.indexOf("--gameweek") + 1] ?? 6);
 
 const c = new Connection(RPC, "confirmed");
-const [managerA, managerB, oracle, treasury] = await Promise.all([
+const [managerA, managerB, oracle] = await Promise.all([
   loadOrCreate("demo-manager-a.json"),
   loadOrCreate("demo-manager-b.json"),
   loadOrCreate("oracle-devnet.json"),
-  loadOrCreate("treasury-devnet.json"),
 ]);
 
 console.log("manager A:", managerA.publicKey.toBase58());
 console.log("manager B:", managerB.publicKey.toBase58());
 console.log("oracle:  ", oracle.publicKey.toBase58());
-console.log("treasury:", treasury.publicKey.toBase58());
+console.log("treasury:", DEVNET_TREASURY.toBase58());
 
 for (const kp of [managerA, managerB, oracle]) {
   await ensureFunded(c, kp, Math.ceil((stakeSol + 0.01) * LAMPORTS_PER_SOL));
@@ -97,5 +99,25 @@ if (result.winnerEntryId === null) throw new Error("tie - split-pot path is post
 const winner = result.winnerEntryId === result.managerA.entryId ? managerA.publicKey : managerB.publicKey;
 
 // 3. settle
-const rec = await submitSettlement(c, oracle, managerA.publicKey, winner, treasury.publicKey, result);
+// Security probe: a caller-supplied fee destination must be rejected. Simulate
+// the exact signed result with a substituted treasury before real settlement.
+const wrongTreasury = Keypair.generate().publicKey;
+const message = oracleMessage(contest, winner, gameweek);
+const signature = nacl.sign.detached(new Uint8Array(message), oracle.secretKey);
+const rejection = new Transaction().add(
+  Ed25519Program.createInstructionWithPublicKey({
+    publicKey: oracle.publicKey.toBuffer(), message, signature: Buffer.from(signature),
+  }),
+  settleIx(managerA.publicKey, gameweek, winner, wrongTreasury),
+);
+rejection.feePayer = oracle.publicKey;
+rejection.recentBlockhash = (await c.getLatestBlockhash()).blockhash;
+rejection.sign(oracle);
+const simulation = await c.simulateTransaction(rejection);
+if (!simulation.value.err || !simulation.value.logs?.some((log) => log.includes("WrongTreasury"))) {
+  throw new Error(`treasury substitution was not rejected as expected: ${JSON.stringify(simulation.value)}`);
+}
+console.log("security probe: substituted treasury rejected by program");
+
+const rec = await submitSettlement(c, oracle, managerA.publicKey, winner, DEVNET_TREASURY, result);
 console.log(JSON.stringify(rec, null, 2));
