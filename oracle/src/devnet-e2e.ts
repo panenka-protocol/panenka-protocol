@@ -1,6 +1,8 @@
 // End-to-end devnet demo: two managers escrow stakes, the oracle signs the
-// gameweek outcome, the program settles on-chain. This is the script the
-// D15-16 demo video records. DEVNET-ONLY value (docs/COMPLIANCE.md).
+// gameweek outcome, the program settles on-chain. This demo uses synthetic
+// points rather than an independently verified FPL result. The video must
+// label it as a replay; it cannot claim oracle-verified official points.
+// DEVNET-ONLY value (docs/COMPLIANCE.md).
 //
 // Usage: npx tsx src/devnet-e2e.ts [--points 72,58] [--stake 0.05]
 // Requires: funded manager/oracle keypairs (created + airdropped by this
@@ -83,8 +85,8 @@ if (!acct) {
   console.log("contest already exists on-chain; skipping create/join");
 }
 
-// 2. oracle computes the result (demo: points passed in; watcher does this
-//    live from the FPL API once the gameweek finishes)
+// 2. Synthetic replay: points supplied by the demo operator, not the FPL API.
+//    For a live contest, watcher.ts fetches official points after GW close.
 const result: ContestResult = {
   contestId: contest.toBase58(),
   gameweek,
@@ -92,8 +94,9 @@ const result: ContestResult = {
   managerB: { entryId: 0, points: pointsArg[1] },
   winnerEntryId: pointsArg[0] === pointsArg[1] ? null : pointsArg[0] > pointsArg[1] ? 10971178 : 0,
   computedAt: new Date().toISOString(),
-  source: "fpl-official",
+  source: "synthetic-replay",
 };
+console.log("REPLAY ONLY: synthetic points, not official FPL scoring");
 if (result.winnerEntryId === null) throw new Error("tie - split-pot path is post-hackathon work");
 
 const winner = result.winnerEntryId === result.managerA.entryId ? managerA.publicKey : managerB.publicKey;
