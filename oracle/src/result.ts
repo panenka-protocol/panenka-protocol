@@ -1,6 +1,6 @@
-// Result types for the oracle: a signed, deterministic gameweek outcome.
-// Settlement inputs come ONLY from official FPL points, so anyone can
-// independently recompute and verify what the oracle signed.
+// Result types for oracle outcomes. The signed on-chain message commits to
+// contest, winner wallet, and gameweek only. Source and points are a separate
+// off-chain claim; verify official FPL data before describing them as official.
 
 import { PublicKey } from "@solana/web3.js";
 import { oracleMessage } from "./client.js";
@@ -12,7 +12,7 @@ export interface ContestResult {
   managerB: { entryId: number; points: number };
   winnerEntryId: number | null; // null on exact tie
   computedAt: string;
-  source: "fpl-official";
+  source: "fpl-official" | "synthetic-replay";
 }
 
 // Canonical signing payload: exactly the bytes the contest program's ed25519
