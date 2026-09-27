@@ -11,7 +11,7 @@ import {
 } from "@solana/web3.js";
 
 export const PROGRAM_ID = new PublicKey("Bv3J2KL8Kp2twqF86d8j77DKUX5NTF4ns4kFftenPU85");
-export const DEVNET_TREASURY = new PublicKey("4ARCvqyV9CY3G3v3ZsSxPe6zeaWaRfBakfiY7GvorF3Y");
+export const DEVNET_TREASURY = new PublicKey("8wTiPnMnZUwUxSSy8GZUABUPfLMnTkoSVhAg2htXcB6c");
 
 function discriminator(name: string): Buffer {
   return createHash("sha256").update(`global:${name}`).digest().subarray(0, 8);
@@ -100,4 +100,4 @@ export function oracleMessage(contest: PublicKey, winner: PublicKey, gameweek: n
   const gw = Buffer.alloc(2);
   gw.writeUInt16LE(gameweek);
   return Buffer.concat([contest.toBuffer(), winner.toBuffer(), gw]);
-}
+    }
