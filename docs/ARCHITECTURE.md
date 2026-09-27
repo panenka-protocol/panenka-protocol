@@ -50,7 +50,7 @@ Flow (see `oracle/src/devnet-e2e.ts`):
 1. Manager A calls `create_contest(gameweek, stake, oracle)` - stake moves to
    the contest PDA vault, oracle pubkey is pinned at creation. The demo program
    fixes the protocol fee destination to devnet treasury
-   `4ARCvqyV9CY3G3v3ZsSxPe6zeaWaRfBakfiY7GvorF3Y`.
+   `8wTiPnMnZUwUxSSy8GZUABUPfLMnTkoSVhAg2htXcB6c`.
 2. Manager B calls `join_contest` with a matching stake - contest locks.
 3. Gameweek closes. The oracle service (`oracle/src/watcher.ts`) reads
    official FPL points, computes the winner, and signs
