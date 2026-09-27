@@ -18,7 +18,7 @@ declare_id!("Bv3J2KL8Kp2twqF86d8j77DKUX5NTF4ns4kFftenPU85");
 pub const PROTOCOL_FEE_BPS: u64 = 500; // 5%
 // Fixed devnet demonstration treasury. A future value-bearing deployment
 // would require a counsel-reviewed redesign and a governed multisig.
-pub const DEVNET_TREASURY: Pubkey = pubkey!("4ARCvqyV9CY3G3v3ZsSxPe6zeaWaRfBakfiY7GvorF3Y");
+pub const DEVNET_TREASURY: Pubkey = pubkey!("8wTiPnMnZUwUxSSy8GZUABUPfLMnTkoSVhAg2htXcB6c");
 pub const ED25519_SIGNATURE_LEN: usize = 64;
 pub const PUBKEY_LEN: usize = 32;
 
