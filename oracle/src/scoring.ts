@@ -4,6 +4,11 @@
 const BASE = "https://fantasy.premierleague.com/api";
 
 export async function entryGameweekPoints(entryId: number, gameweek: number): Promise<number> {
+  return (await entryGameweekData(entryId, gameweek)).points;
+}
+
+/** Points plus the raw FPL entry_history used, for hashing into the signed message. */
+export async function entryGameweekData(entryId: number, gameweek: number): Promise<{ points: number; raw: unknown }> {
   if (!Number.isSafeInteger(entryId) || entryId <= 0 || !Number.isSafeInteger(gameweek) || gameweek <= 0) {
     throw new Error("entry ID and gameweek must be positive integers");
   }
@@ -16,7 +21,8 @@ export async function entryGameweekPoints(entryId: number, gameweek: number): Pr
   if (!Number.isSafeInteger(points)) {
     throw new Error(`FPL entry ${entryId} GW${gameweek} has missing or invalid points`);
   }
-  return points as number; // official GW points (auto-subs and transfer hits included)
+  if ((points as number) < -32768 || (points as number) > 32767) throw new Error("points out of i16 range");
+  return { points: points as number, raw: (data as { entry_history: unknown }).entry_history }; // official GW points (auto-subs and transfer hits included)
 }
 
 export async function gameweekFinished(gameweek: number): Promise<boolean> {
@@ -35,4 +41,14 @@ export async function gameweekFinished(gameweek: number): Promise<boolean> {
     throw new Error(`FPL GW${gameweek} is absent or has no finished flag`);
   }
   return gw.finished;
+}
+
+/** Stricter than gameweekFinished: FPL points can still change (bonus points, corrections) until data_checked. */
+export async function gameweekDataChecked(gameweek: number): Promise<boolean> {
+  const res = await fetch(`${BASE}/bootstrap-static/`, { headers: { "User-Agent": "panenka-oracle/0.1 (hackathon build)" } });
+  if (!res.ok) throw new Error(`FPL bootstrap-static -> ${res.status}`);
+  const events = ((await res.json()) as { events?: unknown }).events;
+  const gw = Array.isArray(events) ? events.find((e) => e?.id === gameweek) : undefined;
+  if (!gw || typeof gw.finished !== "boolean" || typeof gw.data_checked !== "boolean") throw new Error(`FPL GW${gameweek} missing finished/data_checked flags`);
+  return gw.finished && gw.data_checked;
 }
