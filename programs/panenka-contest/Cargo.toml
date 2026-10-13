@@ -3,6 +3,7 @@ name = "panenka-contest"
 version = "0.1.0"
 description = "Panenka Protocol - skill-based staked FPL contests, programmatic settlement"
 edition = "2021"
+rust-version = "1.75"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -17,3 +18,4 @@ default = []
 
 [dependencies]
 anchor-lang = "0.30.1"
+solana-program = "=1.18.26"
