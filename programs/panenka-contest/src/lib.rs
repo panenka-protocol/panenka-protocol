@@ -11,7 +11,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::ed25519_program;
 use anchor_lang::solana_program::pubkey;
-use anchor_lang::solana_program::sysvar::instructions::{load_instruction_at_checked, ID as INSTRUCTIONS_ID};
+use anchor_lang::solana_program::sysvar::instructions::{load_current_index_checked, load_instruction_at_checked, ID as INSTRUCTIONS_ID};
 
 declare_id!("Bv3J2KL8Kp2twqF86d8j77DKUX5NTF4ns4kFftenPU85");
 
@@ -33,11 +33,15 @@ pub mod panenka_contest {
         gameweek: u16,
         stake_lamports: u64,
         oracle: Pubkey,
+        entry_id: u32,
+        binding_expiry: i64,
     ) -> Result<()> {
+        verify_binding(&ctx.accounts.instructions.to_account_info(), &oracle, &ctx.accounts.manager_a.key(), entry_id, binding_expiry)?;
         require!(stake_lamports > 0, ContestError::ZeroStake);
         require!(oracle != Pubkey::default(), ContestError::InvalidOracle);
         let contest = &mut ctx.accounts.contest;
         contest.manager_a = ctx.accounts.manager_a.key();
+        contest.entry_a = entry_id;
         contest.manager_b = Pubkey::default();
         contest.oracle = oracle;
         contest.gameweek = gameweek;
@@ -62,12 +66,16 @@ pub mod panenka_contest {
     }
 
     /// Manager B joins by matching the stake.
-    pub fn join_contest(ctx: Context<JoinContest>) -> Result<()> {
+    pub fn join_contest(ctx: Context<JoinContest>, entry_id: u32, binding_expiry: i64) -> Result<()> {
+        verify_binding(&ctx.accounts.instructions.to_account_info(), &ctx.accounts.contest.oracle, &ctx.accounts.manager_b.key(), entry_id, binding_expiry)?;
         let contest = &mut ctx.accounts.contest;
         require!(contest.state == ContestState::Open, ContestError::NotOpen);
         require!(ctx.accounts.manager_b.key() != contest.manager_a, ContestError::SameManager);
 
+        require!(entry_id != ctx.accounts.contest.entry_a, ContestError::SameManager);
+        let contest = &mut ctx.accounts.contest;
         contest.manager_b = ctx.accounts.manager_b.key();
+        contest.entry_b = entry_id;
         contest.state = ContestState::Locked;
 
         let ix = anchor_lang::solana_program::system_instruction::transfer(
@@ -100,58 +108,85 @@ pub mod panenka_contest {
     }
 
     /// Settle after the gameweek closes. The transaction must begin with an
-    /// ed25519 signature-verification instruction from the contest's oracle
-    /// over message: contest_pubkey || winner_pubkey || gameweek_le.
-    /// Pot pays out minus the protocol fee; the contest account closes and its
-    /// rent lamports return to manager A.
-    pub fn settle(ctx: Context<Settle>) -> Result<()> {
+    /// ed25519 verification instruction from the contest's oracle over
+    /// `oracle_message(..)`, which commits to contest, both managers and FPL
+    /// entry ids, gameweek, both point totals and a data hash. The winner is
+    /// derived here from the signed points, not chosen by the caller. An exact
+    /// tie refunds both stakes with no fee.
+    pub fn settle(ctx: Context<Settle>, points_a: i16, points_b: i16, data_hash: [u8; 32]) -> Result<()> {
+        let contest_key = ctx.accounts.contest.key();
         let contest = &mut ctx.accounts.contest;
         require!(contest.state == ContestState::Locked, ContestError::NotLocked);
 
-        // Parse the oracle's ed25519 verification instruction at index 0.
         let ixs = ctx.accounts.instructions.to_account_info();
         let ix = load_instruction_at_checked(0, &ixs)?;
         require!(ix.program_id == ed25519_program::ID, ContestError::MissingOracleSig);
-        verify_oracle_message(&ix.data, &contest)?;
+        verify_ed25519_signer(&ix.data, &contest.oracle)?;
+        let expected = oracle_message(contest, &contest_key, points_a, points_b, &data_hash);
+        require!(message_matches(&ix.data, &expected), ContestError::OracleMessageMismatch);
 
-        // The oracle message names the winner; the passed winner account must match.
-        let winner = ctx.accounts.winner.key();
-        require!(
-            winner == contest.manager_a || winner == contest.manager_b,
-            ContestError::InvalidWinner
-        );
-        let expected = oracle_message(&contest.key(), &winner, contest.gameweek);
-        require!(
-            message_matches(&ix.data, &expected),
-            ContestError::OracleMessageMismatch
-        );
-
-        let pot = contest.stake.checked_mul(2).unwrap();
-        let fee = pot.checked_mul(PROTOCOL_FEE_BPS).unwrap() / 10_000;
-        let payout = pot.checked_sub(fee).unwrap();
-
-        **contest.to_account_info().try_borrow_mut_lamports()? -= payout;
-        **ctx.accounts.winner.to_account_info().try_borrow_mut_lamports()? += payout;
-        **contest.to_account_info().try_borrow_mut_lamports()? -= fee;
-        **ctx.accounts.treasury.to_account_info().try_borrow_mut_lamports()? += fee;
-
+        let pot = contest.stake.checked_mul(2).ok_or(ContestError::Overflow)?;
+        if points_a == points_b {
+            **contest.to_account_info().try_borrow_mut_lamports()? -= contest.stake;
+            **ctx.accounts.manager_a.to_account_info().try_borrow_mut_lamports()? += contest.stake;
+            **contest.to_account_info().try_borrow_mut_lamports()? -= contest.stake;
+            **ctx.accounts.manager_b.to_account_info().try_borrow_mut_lamports()? += contest.stake;
+        } else {
+            let winner = if points_a > points_b { &ctx.accounts.manager_a } else { &ctx.accounts.manager_b };
+            let fee = pot.checked_mul(PROTOCOL_FEE_BPS).ok_or(ContestError::Overflow)? / 10_000;
+            let payout = pot.checked_sub(fee).ok_or(ContestError::Overflow)?;
+            **contest.to_account_info().try_borrow_mut_lamports()? -= payout;
+            **winner.to_account_info().try_borrow_mut_lamports()? += payout;
+            **contest.to_account_info().try_borrow_mut_lamports()? -= fee;
+            **ctx.accounts.treasury.to_account_info().try_borrow_mut_lamports()? += fee;
+        }
         contest.state = ContestState::Settled;
         Ok(())
     }
 }
 
-/// Canonical oracle message bytes: contest || winner || gameweek (LE u16).
-pub fn oracle_message(contest: &Pubkey, winner: &Pubkey, gameweek: u16) -> Vec<u8> {
-    let mut msg = Vec::with_capacity(PUBKEY_LEN * 2 + 2);
-    msg.extend_from_slice(contest.as_ref());
-    msg.extend_from_slice(winner.as_ref());
-    msg.extend_from_slice(&gameweek.to_le_bytes());
-    msg
+/// Canonical oracle message v2 (all integers little-endian):
+/// "PNK2" || contest || manager_a || manager_b || entry_a u32 || entry_b u32 ||
+/// gameweek u16 || points_a i16 || points_b i16 || data_hash[32].
+/// Must match oracleMessage() in oracle/src/client.ts.
+pub fn oracle_message(c: &Contest, contest_key: &Pubkey, points_a: i16, points_b: i16, data_hash: &[u8; 32]) -> Vec<u8> {
+    let mut m = Vec::with_capacity(4 + 32 * 3 + 4 * 2 + 2 * 3 + 32);
+    m.extend_from_slice(b"PNK2");
+    m.extend_from_slice(contest_key.as_ref());
+    m.extend_from_slice(c.manager_a.as_ref());
+    m.extend_from_slice(c.manager_b.as_ref());
+    m.extend_from_slice(&c.entry_a.to_le_bytes());
+    m.extend_from_slice(&c.entry_b.to_le_bytes());
+    m.extend_from_slice(&c.gameweek.to_le_bytes());
+    m.extend_from_slice(&points_a.to_le_bytes());
+    m.extend_from_slice(&points_b.to_le_bytes());
+    m.extend_from_slice(data_hash);
+    m
+}
+
+/// Ownership binding: the instruction immediately before this one must be an
+/// ed25519 verification by `oracle` over "PNKB" || wallet || entry_id u32 || expiry i64,
+/// and the binding must not be expired. The oracle only signs after checking
+/// off-chain that the wallet's owner controls the FPL entry (challenge code).
+fn verify_binding(ixs: &AccountInfo, oracle: &Pubkey, wallet: &Pubkey, entry_id: u32, expiry: i64) -> Result<()> {
+    let idx = load_current_index_checked(ixs)? as usize;
+    require!(idx > 0, ContestError::MissingBinding);
+    let ix = load_instruction_at_checked(idx - 1, ixs)?;
+    require!(ix.program_id == ed25519_program::ID, ContestError::MissingBinding);
+    verify_ed25519_signer(&ix.data, oracle)?;
+    let mut expected = Vec::with_capacity(4 + 32 + 4 + 8);
+    expected.extend_from_slice(b"PNKB");
+    expected.extend_from_slice(wallet.as_ref());
+    expected.extend_from_slice(&entry_id.to_le_bytes());
+    expected.extend_from_slice(&expiry.to_le_bytes());
+    require!(message_matches(&ix.data, &expected), ContestError::BindingMismatch);
+    require!(Clock::get()?.unix_timestamp <= expiry, ContestError::BindingExpired);
+    Ok(())
 }
 
 /// Verify the ed25519 instruction: exactly one signature, self-contained
 /// (offsets reference this instruction's own data), signed by contest.oracle.
-fn verify_oracle_message(data: &[u8], contest: &Contest) -> Result<()> {
+fn verify_ed25519_signer(data: &[u8], oracle: &Pubkey) -> Result<()> {
     require!(data.len() >= 16, ContestError::MalformedOracleSig);
     let num_signatures = data[0];
     require!(num_signatures == 1, ContestError::MalformedOracleSig);
@@ -172,7 +207,7 @@ fn verify_oracle_message(data: &[u8], contest: &Contest) -> Result<()> {
         ContestError::MalformedOracleSig
     );
     let signer = &data[pubkey_offset..pubkey_offset + PUBKEY_LEN];
-    require!(signer == contest.oracle.as_ref(), ContestError::WrongOracle);
+    require!(signer == oracle.as_ref(), ContestError::WrongOracle);
     Ok(())
 }
 
@@ -194,6 +229,8 @@ pub struct Contest {
     pub manager_a: Pubkey,
     pub manager_b: Pubkey,
     pub oracle: Pubkey,
+    pub entry_a: u32,
+    pub entry_b: u32,
     pub gameweek: u16,
     pub stake: u64,
     pub state: ContestState,
@@ -201,7 +238,7 @@ pub struct Contest {
 }
 
 impl Contest {
-    pub const LEN: usize = 8 + 32 * 3 + 2 + 8 + 1 + 1;
+    pub const LEN: usize = 8 + 32 * 3 + 4 + 4 + 2 + 8 + 1 + 1;
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
@@ -225,6 +262,9 @@ pub struct CreateContest<'info> {
     )]
     pub contest: Account<'info, Contest>,
     pub system_program: Program<'info, System>,
+    /// CHECK: instructions sysvar, used to verify the oracle ownership binding.
+    #[account(address = INSTRUCTIONS_ID)]
+    pub instructions: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -234,6 +274,9 @@ pub struct JoinContest<'info> {
     #[account(mut, seeds = [b"contest", contest.manager_a.as_ref(), &contest.gameweek.to_le_bytes()], bump = contest.bump)]
     pub contest: Account<'info, Contest>,
     pub system_program: Program<'info, System>,
+    /// CHECK: instructions sysvar, used to verify the oracle ownership binding.
+    #[account(address = INSTRUCTIONS_ID)]
+    pub instructions: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -258,9 +301,9 @@ pub struct Settle<'info> {
         close = manager_a
     )]
     pub contest: Account<'info, Contest>,
-    /// CHECK: winner verified against the oracle message and contest managers.
-    #[account(mut)]
-    pub winner: UncheckedAccount<'info>,
+    /// CHECK: second manager, address-checked against the contest.
+    #[account(mut, address = contest.manager_b)]
+    pub manager_b: UncheckedAccount<'info>,
     /// CHECK: fee recipient fixed to the devnet protocol treasury.
     #[account(mut, address = DEVNET_TREASURY @ ContestError::WrongTreasury)]
     pub treasury: UncheckedAccount<'info>,
@@ -292,6 +335,14 @@ pub enum ContestError {
     OracleMessageMismatch,
     #[msg("winner must be one of the two managers")]
     InvalidWinner,
+    #[msg("missing oracle ownership-binding instruction")]
+    MissingBinding,
+    #[msg("binding does not match wallet, entry id and expiry")]
+    BindingMismatch,
+    #[msg("ownership binding expired")]
+    BindingExpired,
+    #[msg("arithmetic overflow")]
+    Overflow,
     #[msg("oracle pubkey must be set")]
     InvalidOracle,
     #[msg("treasury does not match the fixed devnet protocol treasury")]
