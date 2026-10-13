@@ -13,14 +13,17 @@ import { dirname } from "node:path";
 import {
   Connection,
   Keypair,
+  PublicKey,
   LAMPORTS_PER_SOL,
   Transaction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import { createContestIx, joinContestIx, contestPda, settleIx, oracleMessage, DEVNET_TREASURY } from "./client.js";
+import { createContestIx, joinContestIx, contestPda, settleIx, bindingMessage, DEVNET_TREASURY } from "./client.js";
 import nacl from "tweetnacl";
+import { Buffer } from "node:buffer";
 import { Ed25519Program } from "@solana/web3.js";
 import { submitSettlement } from "./settle.js";
+import { hashRawData, canonicalMessageBytes } from "./result.js";
 import type { ContestResult } from "./result.js";
 
 const RPC = process.env.PANENKA_RPC ?? (process.env.HELIUS_API_KEY
@@ -53,6 +56,8 @@ const pointsArg = args[args.indexOf("--points") + 1]?.split(",").map(Number) ?? 
 const stakeSol = Number(args[args.indexOf("--stake") + 1] ?? 0.05);
 const gameweek = Number(args[args.indexOf("--gameweek") + 1] ?? 6);
 
+// Demo entry ids are placeholders, not verified FPL entries.
+const ENTRY_A = 10971178, ENTRY_B = 10971179;
 const c = new Connection(RPC, "confirmed");
 const [managerA, managerB, oracle] = await Promise.all([
   loadOrCreate("demo-manager-a.json"),
@@ -69,6 +74,9 @@ for (const kp of [managerA, managerB, oracle]) {
   await ensureFunded(c, kp, Math.ceil((stakeSol + 0.01) * LAMPORTS_PER_SOL));
 }
 
+// Demo only: the oracle signs ownership bindings without checking FPL. A live oracle must verify the challenge code first.
+const EXPIRY = Math.floor(Date.now() / 1000) + 600;
+const bindIx = (w: PublicKey, entry: number) => { const m = bindingMessage(w, entry, EXPIRY); return Ed25519Program.createInstructionWithPublicKey({ publicKey: oracle.publicKey.toBuffer(), message: m, signature: Buffer.from(nacl.sign.detached(new Uint8Array(m), oracle.secretKey)) }); };
 const stake = BigInt(Math.round(stakeSol * LAMPORTS_PER_SOL));
 const [contest] = contestPda(managerA.publicKey, gameweek);
 console.log("contest PDA:", contest.toBase58());
@@ -77,8 +85,10 @@ console.log("contest PDA:", contest.toBase58());
 const acct = await c.getAccountInfo(contest);
 if (!acct) {
   const tx = new Transaction()
-    .add(createContestIx(managerA.publicKey, gameweek, stake, oracle.publicKey))
-    .add(joinContestIx(managerB.publicKey, managerA.publicKey, gameweek));
+    .add(bindIx(managerA.publicKey, ENTRY_A))
+    .add(createContestIx(managerA.publicKey, gameweek, stake, oracle.publicKey, ENTRY_A, EXPIRY))
+    .add(bindIx(managerB.publicKey, ENTRY_B))
+    .add(joinContestIx(managerB.publicKey, managerA.publicKey, gameweek, ENTRY_B, EXPIRY));
   const sig = await sendAndConfirmTransaction(c, tx, [managerA, managerB]);
   console.log("created+joined:", `https://explorer.solana.com/tx/${sig}?cluster=devnet`);
 } else {
@@ -90,28 +100,22 @@ if (!acct) {
 const result: ContestResult = {
   contestId: contest.toBase58(),
   gameweek,
-  managerA: { entryId: 10971178, points: pointsArg[0] },
-  managerB: { entryId: 0, points: pointsArg[1] },
-  winnerEntryId: pointsArg[0] === pointsArg[1] ? null : pointsArg[0] > pointsArg[1] ? 10971178 : 0,
+  managerA: { entryId: ENTRY_A, wallet: managerA.publicKey.toBase58(), points: pointsArg[0] },
+  managerB: { entryId: ENTRY_B, wallet: managerB.publicKey.toBase58(), points: pointsArg[1] },
+  dataHash: hashRawData({ synthetic: true, gameweek, points: pointsArg }).toString("hex"),
   computedAt: new Date().toISOString(),
   source: "synthetic-replay",
 };
 console.log("REPLAY ONLY: synthetic points, not official FPL scoring");
-if (result.winnerEntryId === null) throw new Error("tie - split-pot path is post-hackathon work");
-
-const winner = result.winnerEntryId === result.managerA.entryId ? managerA.publicKey : managerB.publicKey;
 
 // 3. settle
 // Security probe: a caller-supplied fee destination must be rejected. Simulate
 // the exact signed result with a substituted treasury before real settlement.
-const wrongTreasury = Keypair.generate().publicKey;
-const message = oracleMessage(contest, winner, gameweek);
-const signature = nacl.sign.detached(new Uint8Array(message), oracle.secretKey);
+const msg = canonicalMessageBytes(result);
+const signature = nacl.sign.detached(new Uint8Array(msg), oracle.secretKey);
 const rejection = new Transaction().add(
-  Ed25519Program.createInstructionWithPublicKey({
-    publicKey: oracle.publicKey.toBuffer(), message, signature: Buffer.from(signature),
-  }),
-  settleIx(managerA.publicKey, gameweek, winner, wrongTreasury),
+  Ed25519Program.createInstructionWithPublicKey({ publicKey: oracle.publicKey.toBuffer(), message: msg, signature: Buffer.from(signature) }),
+  settleIx(managerA.publicKey, managerB.publicKey, gameweek, pointsArg[0], pointsArg[1], Buffer.from(result.dataHash, "hex"), Keypair.generate().publicKey),
 );
 rejection.feePayer = oracle.publicKey;
 rejection.recentBlockhash = (await c.getLatestBlockhash()).blockhash;
@@ -122,5 +126,5 @@ if (!simulation.value.err || !simulation.value.logs?.some((log) => log.includes(
 }
 console.log("security probe: substituted treasury rejected by program");
 
-const rec = await submitSettlement(c, oracle, managerA.publicKey, winner, DEVNET_TREASURY, result);
+const rec = await submitSettlement(c, oracle, DEVNET_TREASURY, result);
 console.log(JSON.stringify(rec, null, 2));
